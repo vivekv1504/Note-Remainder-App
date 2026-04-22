@@ -1,0 +1,170 @@
+.quick-todo-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-primary);
+  z-index: 1001;
+  animation: fadeIn 0.2s ease;
+}
+
+.quick-todo-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem 1.5rem;
+}
+
+.quick-todo-header {
+  margin: 0 0 2rem 0;
+  font-size: 2.5rem;
+  font-weight: 600;
+  color: #ff6b6b;
+}
+
+.quick-todo-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #b4c9b4;
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  margin-bottom: 0.75rem;
+}
+
+:root[data-theme='dark'] .quick-todo-input-wrapper {
+  background: #6b8269;
+}
+
+.todo-checkbox-icon {
+  font-size: 1.5rem;
+  color: #5a5a5a;
+  flex-shrink: 0;
+}
+
+:root[data-theme='dark'] .todo-checkbox-icon {
+  color: #9e9e9e;
+}
+
+.quick-todo-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-size: 1.1rem;
+  color: #5a5a5a;
+  outline: none;
+}
+
+:root[data-theme='dark'] .quick-todo-input {
+  color: #e0e0e0;
+}
+
+.quick-todo-input::placeholder {
+  color: #7a7a7a;
+}
+
+:root[data-theme='dark'] .quick-todo-input::placeholder {
+  color: #b0b0b0;
+}
+
+.quick-todo-hint {
+  margin: 0 0 auto 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  padding-left: 0.25rem;
+}
+
+.quick-todo-footer {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.5rem 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.footer-icon-btn {
+  background: transparent;
+  border: none;
+  width: 44px;
+  height: 44px;
+  font-size: 1.5rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.footer-icon-btn:hover {
+  background: var(--border-color);
+}
+
+.footer-icon-btn.delete-icon {
+  color: #f44336;
+}
+
+.footer-icon-btn.delete-icon:hover {
+  background: rgba(244, 67, 54, 0.1);
+}
+
+.done-btn {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #a08060;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.done-btn:hover {
+  background: var(--border-color);
+}
+
+.quick-todo-datepicker {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.datepicker-title {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.close-picker-btn {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #a08060;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.close-picker-btn:hover {
+  background: #8a6d52;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
