@@ -1,66 +1,31 @@
 /**
- * LLM Service - Gemini API Integration
- * Generates AI-powered summaries using Google's Gemini Flash models
+ * LLM Service - LiteLLM Backend Integration
+ * Generates AI-powered summaries using Azure OpenAI via Webex LLM Proxy
  */
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const GEMINI_MODEL_CANDIDATES = [
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-];
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
 
-const buildGeminiEndpoint = (model) => `${GEMINI_API_BASE}/${model}:generateContent`;
+const requestBackendSummary = async (summaryData) => {
+  const response = await fetch(`${BACKEND_URL}/api/generate-summary`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(summaryData)
+  });
 
-const requestGeminiSummary = async (prompt) => {
-  let lastErrorMessage = 'API request failed';
-
-  for (const model of GEMINI_MODEL_CANDIDATES) {
-    const response = await fetch(`${buildGeminiEndpoint(model)}?key=${GEMINI_API_KEY.trim()}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024,
-        }
-      })
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (aiText) {
-        return aiText;
-      }
-
-      lastErrorMessage = 'No response from AI';
-      continue;
-    }
-
+  if (!response.ok) {
     const errorData = await response.json().catch(() => null);
-    lastErrorMessage = errorData?.error?.message || 'API request failed';
-
-    // Retired or unsupported models should fall through to the next candidate.
-    if (response.status === 404 || response.status === 400) {
-      continue;
-    }
-
-    throw new Error(lastErrorMessage);
+    throw new Error(errorData?.message || 'Backend API request failed');
   }
 
-  throw new Error(lastErrorMessage);
+  const data = await response.json();
+
+  if (!data.success || !data.summary) {
+    throw new Error('Invalid response from backend');
+  }
+
+  return data.summary;
 };
 
 /**
@@ -69,24 +34,32 @@ const requestGeminiSummary = async (prompt) => {
  * @returns {Promise<{text: string, source: string}>} AI-generated summary text
  */
 export const generateSummary = async (summaryData) => {
-  // Validate API key
-  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_api_key_here') {
-    return {
-      text: generateFallbackSummary(summaryData),
-      source: 'Local Fallback',
-    };
-  }
-
-  const prompt = createPrompt(summaryData);
-
   try {
-    const text = await requestGeminiSummary(prompt);
+    // Transform summaryData to match backend API format
+    const backendPayload = {
+      notes: {
+        created: summaryData.notes.created,
+        updated: summaryData.notes.updated,
+        deleted: summaryData.notes.deleted
+      },
+      todos: {
+        completed: summaryData.todos.completed,
+        pending: summaryData.todos.pending
+      },
+      reminders: {
+        triggered: summaryData.reminders.triggered,
+        due: summaryData.reminders.due,
+        overdue: summaryData.reminders.overdue
+      }
+    };
+
+    const text = await requestBackendSummary(backendPayload);
     return {
       text,
-      source: 'Gemini AI',
+      source: 'Azure OpenAI (LiteLLM)',
     };
   } catch (error) {
-    console.warn('Gemini summary unavailable, using fallback summary:', error.message);
+    console.warn('Backend AI summary unavailable, using fallback:', error.message);
     return {
       text: generateFallbackSummary(summaryData),
       source: 'Local Fallback',
@@ -94,85 +67,7 @@ export const generateSummary = async (summaryData) => {
   }
 };
 
-/**
- * Create effective prompt for Gemini
- * @param {Object} data - Summary data
- * @returns {string} Formatted prompt
- */
-const createPrompt = (data) => {
-  const stats = {
-    notesCreated: data.notes.created.length,
-    notesUpdated: data.notes.updated.length,
-    notesDeleted: data.notes.deleted.length,
-    todosCompleted: data.todos.completed.length,
-    todosPending: data.todos.pending,
-    remindersTriggered: data.reminders.triggered.length,
-    remindersDue: data.reminders.due.length,
-    remindersOverdue: data.reminders.overdue.length,
-    productivityScore: data.insights.productivityScore,
-    streakDays: data.insights.streakDays,
-    mostActiveDay: data.insights.mostActiveDay,
-    mostActiveTime: data.insights.mostActiveTime,
-    averagePerDay: data.insights.averageNotesPerDay,
-    completionRate: data.insights.completionRate
-  };
-
-  // Get recent note titles
-  const recentTitles = data.notes.created
-    .slice(0, 5)
-    .map(n => n.title)
-    .filter(t => t && t.trim())
-    .join('\n- ');
-
-  // Get overdue reminder titles
-  const overdueTitles = data.reminders.overdue
-    .slice(0, 3)
-    .map(r => r.noteTitle)
-    .filter(t => t && t.trim())
-    .join('\n- ');
-
-  return `You are a friendly and insightful productivity assistant. Analyze this user's note-taking and reminder activity for the last 7 days and provide a warm, encouraging summary.
-
-📊 ACTIVITY DATA:
-
-Notes:
-- Created: ${stats.notesCreated}
-- Updated: ${stats.notesUpdated}
-- Deleted: ${stats.notesDeleted}
-
-Todos:
-- Completed: ${stats.todosCompleted}
-- Pending: ${stats.todosPending}
-- Completion Rate: ${stats.completionRate}%
-
-Reminders:
-- Triggered (completed): ${stats.remindersTriggered}
-- Upcoming: ${stats.remindersDue}
-- Overdue: ${stats.remindersOverdue}
-
-Insights:
-- Productivity Score: ${stats.productivityScore}/100
-- Active Streak: ${stats.streakDays} days
-- Most Active Day: ${stats.mostActiveDay}
-- Most Active Time: ${stats.mostActiveTime}
-- Average Notes/Day: ${stats.averagePerDay}
-
-${recentTitles ? `Recent Note Titles:\n- ${recentTitles}\n` : ''}
-${overdueTitles ? `Overdue Reminders:\n- ${overdueTitles}\n` : ''}
-
-INSTRUCTIONS:
-1. Start with a brief, friendly greeting and overview (2-3 sentences)
-2. Highlight 2-3 positive patterns or achievements
-3. If there are overdue reminders, gently mention them
-4. Provide 2-3 actionable recommendations to improve productivity
-5. End with encouragement
-
-TONE: Conversational, positive, helpful, and motivating
-LENGTH: 4-6 short paragraphs
-EMOJIS: Use sparingly (1-2 max)
-
-Write the summary now:`;
-};
+// Prompt creation is now handled by the backend
 
 /**
  * Generate fallback summary when API fails
@@ -255,15 +150,12 @@ const generateFallbackSummary = (data) => {
  * @returns {Promise<boolean>} True if API is working
  */
 export const testAPIConnection = async () => {
-  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_api_key_here') {
-    return false;
-  }
-
   try {
-    await requestGeminiSummary("Say 'API is working' in 3 words.");
-    return true;
+    const response = await fetch(`${BACKEND_URL}/api/test-connection`);
+    const data = await response.json();
+    return data.success === true;
   } catch (error) {
-    console.warn('Gemini API test failed:', error.message);
+    console.warn('Backend API test failed:', error.message);
     return false;
   }
 };
@@ -272,15 +164,23 @@ export const testAPIConnection = async () => {
  * Get API key status
  * @returns {Object} Status information
  */
-export const getAPIKeyStatus = () => {
-  const hasKey = GEMINI_API_KEY && GEMINI_API_KEY !== 'your_api_key_here';
-  const keyLength = GEMINI_API_KEY ? GEMINI_API_KEY.trim().length : 0;
-  const keyPrefix = GEMINI_API_KEY ? GEMINI_API_KEY.trim().substring(0, 4) : '';
-
-  return {
-    configured: hasKey,
-    valid: hasKey && keyLength === 39 && keyPrefix === 'AIza',
-    length: keyLength,
-    prefix: keyPrefix
-  };
+export const getAPIKeyStatus = async () => {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/token-status`);
+    const data = await response.json();
+    return {
+      configured: data.token_configured,
+      valid: data.token_configured && data.endpoint_configured,
+      endpoint: data.endpoint,
+      deployment: data.deployment
+    };
+  } catch (error) {
+    console.warn('Failed to get backend status:', error.message);
+    return {
+      configured: false,
+      valid: false,
+      endpoint: 'Unknown',
+      deployment: 'Unknown'
+    };
+  }
 };
