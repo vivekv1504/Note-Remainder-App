@@ -2,7 +2,7 @@ name: Deploy Vite to GitHub Pages
 
 on:
   push:
-    branches: [ "LiteLLM", "main" ]
+    branches: [ "LiteLLM" ]
   workflow_dispatch:
 
 permissions:
