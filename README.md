@@ -499,5 +499,5 @@ Internal project - not for public distribution.
 
 Built with ❤️ using React + Vite + Azure OpenAI
 
-**Contributor**: vivek  
+**Contributor**: VIVEKANANDA
 **Version**: 2.0.0 (with AI Summary feature)
