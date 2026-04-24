@@ -3,6 +3,9 @@ import { useCustomRingtones } from '../hooks/useCustomRingtones';
 import { SummaryView } from './SummaryView';
 import './ProfilePage.css';
 
+const BUILTIN_RINGTONE_BASE = import.meta.env.BASE_URL;
+const DEFAULT_RINGTONE = `${BUILTIN_RINGTONE_BASE}ringtone.wav`;
+
 export const ProfilePage = ({ user, notes, deletedNotes = [], onRestoreNote, onPermanentlyDeleteNote, theme, onToggleTheme, notificationsEnabled, onToggleNotifications, selectedRingtone, onRingtoneChange, onSignOut }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
@@ -19,8 +22,8 @@ export const ProfilePage = ({ user, notes, deletedNotes = [], onRestoreNote, onP
   const [deletingRingtoneId, setDeletingRingtoneId] = useState(null);
 
   const BUILTIN_RINGTONES = [
-    { label: 'Classic', path: '/ringtone.wav', icon: '🔔' },
-    { label: 'Sinder', path: '/sinder.mp3', icon: '🎵' },
+    { label: 'Classic', path: DEFAULT_RINGTONE, icon: '🔔' },
+    { label: 'Sinder', path: `${BUILTIN_RINGTONE_BASE}sinder.mp3`, icon: '🎵' },
   ];
 
   const allRingtones = [...BUILTIN_RINGTONES, ...customRingtones];
@@ -114,7 +117,7 @@ export const ProfilePage = ({ user, notes, deletedNotes = [], onRestoreNote, onP
       // If deleted ringtone was selected, revert to default
       const ringtone = customRingtones.find((r) => r.id === ringtoneId);
       if (ringtone && selectedRingtone === ringtone.path) {
-        onRingtoneChange('/ringtone.wav');
+        onRingtoneChange(DEFAULT_RINGTONE);
       }
       console.log('[Ringtone] Successfully deleted from Firestore');
     } else {
