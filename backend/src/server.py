@@ -83,13 +83,14 @@ def generate_ai_summary():
             }), 400
 
         # Generate summary using LiteLLM
-        summary = generate_summary(data)
+        result = generate_summary(data)
 
         return jsonify({
             "success": True,
-            "summary": summary,
-            "model": f"azure/{os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME', 'gpt-4o')}",
-            "provider": "LiteLLM (Azure OpenAI via Webex)"
+            "summary": result["text"],
+            "model": f"azure/{os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME', 'gpt-4o')}" if result["is_ai"] else "local-fallback",
+            "provider": "LiteLLM (Azure OpenAI via Webex)" if result["is_ai"] else "Local Fallback (Token Expired)",
+            "is_ai": result["is_ai"]
         })
 
     except Exception as e:

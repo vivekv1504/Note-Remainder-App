@@ -25,7 +25,7 @@ const requestBackendSummary = async (summaryData) => {
     throw new Error('Invalid response from backend');
   }
 
-  return data.summary;
+  return data;
 };
 
 /**
@@ -53,10 +53,10 @@ export const generateSummary = async (summaryData) => {
       }
     };
 
-    const text = await requestBackendSummary(backendPayload);
+    const data = await requestBackendSummary(backendPayload);
     return {
-      text,
-      source: 'Azure OpenAI (LiteLLM)',
+      text: data.summary,
+      source: data.is_ai ? 'Azure OpenAI (LiteLLM)' : 'Local Fallback',
     };
   } catch (error) {
     console.warn('Backend AI summary unavailable, using fallback:', error.message);

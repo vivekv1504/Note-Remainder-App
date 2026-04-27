@@ -23,7 +23,7 @@ MODEL = f"azure/{DEPLOYMENT_NAME}"
 # litellm.set_verbose = True
 
 
-def generate_summary(summary_data: Dict[str, Any]) -> str:
+def generate_summary(summary_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Generate AI summary using LiteLLM with Azure OpenAI backend
 
@@ -31,7 +31,7 @@ def generate_summary(summary_data: Dict[str, Any]) -> str:
         summary_data: Dictionary containing user's note activity data
 
     Returns:
-        Generated summary text
+        Dictionary with summary text and source indicator
     """
     try:
         # Create prompt from data
@@ -57,25 +57,40 @@ def generate_summary(summary_data: Dict[str, Any]) -> str:
 
         # Extract text from LiteLLM response
         summary_text = response.choices[0].message.content
-        return summary_text
+        return {
+            "text": summary_text,
+            "is_ai": True
+        }
 
     except litellm.exceptions.Timeout:
         print("❌ LiteLLM request timeout")
-        return generate_fallback_summary(summary_data)
+        return {
+            "text": generate_fallback_summary(summary_data),
+            "is_ai": False
+        }
 
     except litellm.exceptions.AuthenticationError as e:
         print(f"❌ Authentication failed: {str(e)}")
         print("   Check your Webex bearer token in .env file")
-        return generate_fallback_summary(summary_data)
+        return {
+            "text": generate_fallback_summary(summary_data),
+            "is_ai": False
+        }
 
     except litellm.exceptions.RateLimitError as e:
         print(f"❌ Rate limit exceeded: {str(e)}")
-        return generate_fallback_summary(summary_data)
+        return {
+            "text": generate_fallback_summary(summary_data),
+            "is_ai": False
+        }
 
     except Exception as e:
         error_type = type(e).__name__
         print(f"❌ LiteLLM error ({error_type}): {str(e)}")
-        return generate_fallback_summary(summary_data)
+        return {
+            "text": generate_fallback_summary(summary_data),
+            "is_ai": False
+        }
 
 
 def create_prompt(data: Dict[str, Any]) -> str:
