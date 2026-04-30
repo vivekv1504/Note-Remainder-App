@@ -593,7 +593,7 @@
 }
 
 /* AI Summary Button */
-.summary-btn {
+/* .summary-btn {
   background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
   border-color: rgba(102, 126, 234, 0.3);
 }
@@ -610,7 +610,7 @@
   -webkit-text-fill-color: transparent;
   background-clip: text;
   font-weight: 600;
-}
+} */
 
 /* FAQ Section */
 .faq-content {

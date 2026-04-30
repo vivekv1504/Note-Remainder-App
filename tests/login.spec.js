@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/Note-Remainder-App/');
 });
 
 test('login page displays all elements correctly', async ({ page }) => {
@@ -42,24 +42,29 @@ test('sign-in button opens OAuth popup', async ({ page }) => {
 test('signs in via Firebase Auth Emulator — no Google needed', async ({ page }) => {
   console.log('[TEST] Signing in via Auth Emulator — email/password, no Google popup');
 
-  // Verify the test user exists in the emulator
-  const response = await fetch(
-    'http://localhost:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-key',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'test@test.com', password: 'Test1234!', returnSecureToken: true }),
-    }
-  );
-  const data = await response.json();
-  console.log('[INFO] Emulator sign-in response:', data);
-  if (!data.idToken) throw new Error(`Emulator user not found: ${JSON.stringify(data)}`);
-  console.log('[INFO] Emulator user confirmed — signing in via browser');
+  const email = 'test@test.com';
+  const password = 'Test1234!';
+
+  // Create test user in emulator (sign up)
+  try {
+    const signUpResponse = await page.request.post(
+      'http://localhost:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake-key',
+      {
+        data: { email, password, returnSecureToken: true }
+      }
+    );
+    const signUpData = await signUpResponse.json();
+    console.log('[INFO] Created test user in emulator:', signUpData.idToken ? 'Success' : 'Failed');
+  } catch (e) {
+    console.log('[INFO] Test user may already exist, continuing...');
+  }
 
   // Use the window.__testSignIn helper (exposed in main.jsx when VITE_USE_EMULATOR=true)
   // This calls signInWithEmailAndPassword directly against the emulator
   await page.waitForFunction(() => typeof window.__testSignIn === 'function', { timeout: 5000 });
-  await page.evaluate(() => window.__testSignIn('test@test.com', 'Test1234!'), { timeout: 10000 });
+  await page.evaluate(async (creds) => {
+    await window.__testSignIn(creds.email, creds.password);
+  }, { email, password });
   console.log('[INFO] signInWithEmailAndPassword called against emulator');
 
   await page.reload();
@@ -70,9 +75,23 @@ test('signs in via Firebase Auth Emulator — no Google needed', async ({ page }
 test('app opens successfully after login with all main elements', async ({ page }) => {
   console.log('[TEST] Verifying app loads correctly after login');
 
+  const email = 'test@test.com';
+  const password = 'Test1234!';
+
+  // Create user in Auth Emulator
+  try {
+    await page.request.post('http://localhost:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake-api-key', {
+      data: { email, password, returnSecureToken: true }
+    });
+  } catch (e) {
+    console.log('[INFO] Test user already exists');
+  }
+
   // Sign in via emulator
   await page.waitForFunction(() => typeof window.__testSignIn === 'function', { timeout: 5000 });
-  await page.evaluate(() => window.__testSignIn('test@test.com', 'Test1234!'));
+  await page.evaluate(async (creds) => {
+    await window.__testSignIn(creds.email, creds.password);
+  }, { email, password });
   console.log('[INFO] Signed in via emulator');
 
   await page.reload();
