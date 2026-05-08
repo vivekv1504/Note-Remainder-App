@@ -451,6 +451,8 @@ lsof -ti:5001 | xargs kill -9
 
 ## Architecture
 
+### High-Level System Architecture
+
 ```
 ┌─────────────────┐
 │  React Frontend │ (Port 5173)
@@ -467,6 +469,96 @@ lsof -ti:5001 | xargs kill -9
                                  │
                                  └─► Azure OpenAI (GPT-4o)
 ```
+
+### AI Summary Generation Workflow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         USER CLICKS BUTTON                      │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  FRONTEND: Data Aggregation (summaryService.js)                │
+│  • Collect notes from last 7 days                              │
+│  • Calculate productivity metrics                              │
+│  • Organize into structured data                               │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  FRONTEND: API Call (llmService.js)                            │
+│  POST http://localhost:5001/api/generate-summary               │
+│  Body: { notes, todos, reminders }                             │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  BACKEND: Flask API (server.py)                                │
+│  • Validate request data                                       │
+│  • Call LiteLLM service                                        │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  BACKEND: LiteLLM Service (llm_service.py)                     │
+│  • Create detailed prompt from data                            │
+│  • Configure Azure OpenAI credentials                          │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  LiteLLM: Unified Interface                                    │
+│  • Formats request for Azure OpenAI                            │
+│  • Adds authentication headers                                 │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  WEBEX LLM PROXY (Cisco Internal)                             │
+│  • Validates bearer token (12-hour expiry)                     │
+│  • Routes to Azure OpenAI                                      │
+│  • Endpoint: llm-proxy.us-east-2.int.infra.intelligence...    │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  AZURE OPENAI (Microsoft Cloud)                                │
+│  • GPT-4o Model processes prompt                               │
+│  • Generates natural language summary                          │
+│  • Temperature: 0.7, Max tokens: 600                           │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  RESPONSE FLOWS BACK                                           │
+│  Azure → Webex Proxy → LiteLLM → Backend → Frontend           │
+└────────────────────────────┬────────────────────────────────────┘
+                             ↓
+                    ┌────────┴────────┐
+                    ↓                 ↓
+        ┌──────────────────┐  ┌──────────────────┐
+        │ SUCCESS (200 OK) │  │ ERROR (401/403)  │
+        │ is_ai: true      │  │ is_ai: false     │
+        │ Real AI Summary  │  │ Fallback Summary │
+        └──────────┬───────┘  └────────┬─────────┘
+                   └──────────┬─────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  FRONTEND: Display Results (SummaryView.jsx)                   │
+│  • Show summary text                                           │
+│  • Display "🚀 Live AI" badge (if is_ai: true)                │
+│  • Show metrics and insights                                   │
+│  • Footer: "Powered by Azure OpenAI (GPT-4o)"                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Workflow Steps:**
+
+1. **User Action** - Clicks "Generate AI Summary" button
+2. **Data Collection** - Frontend aggregates 7 days of activity data
+3. **API Request** - POST request sent to Flask backend
+4. **Backend Processing** - Validates data and prepares LLM prompt
+5. **LiteLLM Integration** - Formats request for Azure OpenAI
+6. **Authentication** - Webex proxy validates bearer token (12h expiry)
+7. **AI Generation** - GPT-4o processes prompt and generates summary
+8. **Response Chain** - Results flow back through all layers
+9. **Error Handling** - Falls back to local template if AI fails
+10. **Display** - Shows summary with appropriate badges and metadata
+
+**Timing:** End-to-end process takes approximately 2.5-4.5 seconds
 
 ## Future Enhancement Ideas
 
