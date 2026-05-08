@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, lazy, Suspense } from 'react'
 import './App.css'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
@@ -14,8 +14,11 @@ import { BottomNavigation } from './components/BottomNavigation'
 import { NoteModal } from './components/NoteModal'
 import { ProfilePage } from './components/ProfilePage'
 import { QuickTodo } from './components/QuickTodo'
-import { TestDataPanel } from './components/TestDataPanel'
 import { SummaryView } from './components/SummaryView'
+
+const TestDataPanel = import.meta.env.DEV
+  ? lazy(() => import('./components/TestDataPanel').then((module) => ({ default: module.TestDataPanel })))
+  : null;
 
 function App() {
   const { user, loading: authLoading, error: authError, signInWithGoogle, signOut } = useAuth();
@@ -160,13 +163,15 @@ function App() {
               >
                 📊
               </button>
-              <button
-                className="header-btn"
-                onClick={() => setShowTestPanel(!showTestPanel)}
-                title="Test Mode"
-              >
-                🧪
-              </button>
+              {import.meta.env.DEV && (
+                <button
+                  className="header-btn"
+                  onClick={() => setShowTestPanel(!showTestPanel)}
+                  title="Test Mode"
+                >
+                  🧪
+                </button>
+              )}
             </>
           )}
           <button
@@ -322,14 +327,16 @@ function App() {
       )}
 
       {/* Test Data Panel - Controlled by header button */}
-      {user && showTestPanel && (
-        <TestDataPanel
-          notes={notes}
-          deletedNotes={deletedNotes}
-          onAddFakeData={handleAddFakeData}
-          onClearFakeData={handleClearFakeData}
-          onClose={() => setShowTestPanel(false)}
-        />
+      {import.meta.env.DEV && user && showTestPanel && TestDataPanel && (
+        <Suspense fallback={null}>
+          <TestDataPanel
+            notes={notes}
+            deletedNotes={deletedNotes}
+            onAddFakeData={handleAddFakeData}
+            onClearFakeData={handleClearFakeData}
+            onClose={() => setShowTestPanel(false)}
+          />
+        </Suspense>
       )}
     </div>
   )
