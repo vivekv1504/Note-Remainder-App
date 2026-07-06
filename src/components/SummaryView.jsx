@@ -7,7 +7,7 @@ export const SummaryView = ({ notes, deletedNotes, onBack }) => {
   const [loading, setLoading] = useState(true);
   const [summaryData, setSummaryData] = useState(null);
   const [aiSummary, setAiSummary] = useState('');
-  const [aiSummarySource, setAiSummarySource] = useState('Gemini AI');
+  const [aiSummarySource, setAiSummarySource] = useState('Azure OpenAI (LiteLLM)');
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -20,12 +20,6 @@ export const SummaryView = ({ notes, deletedNotes, onBack }) => {
     setError(null);
 
     try {
-      // Check API key status first
-      const keyStatus = getAPIKeyStatus();
-      if (!keyStatus.configured) {
-        throw new Error('Gemini API key not configured. Please check your .env file.');
-      }
-
       // Get aggregated data
       const data = getSummaryData(notes, deletedNotes, 7);
       setSummaryData(data);
@@ -37,7 +31,7 @@ export const SummaryView = ({ notes, deletedNotes, onBack }) => {
         setAiSummarySource('Local Fallback');
       } else {
         setAiSummary(summary.text || '');
-        setAiSummarySource(summary.source || 'Gemini AI');
+        setAiSummarySource(summary.source || 'Azure OpenAI (LiteLLM)');
       }
     } catch (err) {
       setError(err.message || 'Failed to generate summary. Please try again.');
@@ -90,18 +84,13 @@ export const SummaryView = ({ notes, deletedNotes, onBack }) => {
               ← Go Back
             </button>
           </div>
-          {error.includes('API key') && (
+          {error.includes('Backend') && (
             <div className="error-help">
               <p><strong>Need help?</strong></p>
-              <p>Get your free API key from:</p>
-              <a
-                href="https://aistudio.google.com/app/apikey"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="help-link"
-              >
-                🔗 Google AI Studio
-              </a>
+              <p>Make sure the backend server is running:</p>
+              <code style={{background: '#1e1e1e', padding: '8px', borderRadius: '4px', display: 'block', marginTop: '8px'}}>
+                cd backend && python src/server.py
+              </code>
             </div>
           )}
         </div>
@@ -155,13 +144,37 @@ export const SummaryView = ({ notes, deletedNotes, onBack }) => {
 
         {/* AI Generated Summary */}
         <div className="summary-card ai-summary-card">
-          <h3>🤖 AI Insights</h3>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px'}}>
+            <h3>🤖 AI Insights</h3>
+            {aiSummarySource !== 'Local Fallback' && (
+              <span style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                padding: '4px 12px',
+                borderRadius: '12px',
+                fontSize: '11px',
+                fontWeight: '600',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}>
+                🚀 Live AI
+              </span>
+            )}
+          </div>
           <div className="ai-summary-text">
             {aiSummary}
           </div>
           <div className="ai-badge">
             <span className="badge-icon">✨</span>
-            {aiSummarySource === 'Gemini AI' ? 'Powered by Gemini AI' : 'Source: Local Fallback'}
+            {aiSummarySource === 'Local Fallback' ? (
+              <span>
+                Source: Local Fallback <span style={{color: '#999', fontSize: '12px'}}>(Backend unavailable)</span>
+              </span>
+            ) : (
+              <span>
+                Powered by {aiSummarySource} <span style={{color: '#999', fontSize: '12px'}}>(GPT-4o)</span>
+              </span>
+            )}
           </div>
         </div>
 

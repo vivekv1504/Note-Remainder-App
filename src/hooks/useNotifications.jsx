@@ -3,11 +3,12 @@ import { toast } from 'react-toastify';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 const REPEAT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const DEFAULT_RINGTONE = `${import.meta.env.BASE_URL}ringtone.wav`;
 
 export const useNotifications = (notes, userId, onComplete, onReminderTriggered) => {
   const audioRef = useRef(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [selectedRingtone, setSelectedRingtone] = useState('/ringtone.wav');
+  const [selectedRingtone, setSelectedRingtone] = useState(DEFAULT_RINGTONE);
   const selectedRingtoneRef = useRef(selectedRingtone);
   const lastNotifiedAt = useRef(
     JSON.parse(localStorage.getItem('lastNotifiedAt') || '{}')
@@ -56,10 +57,10 @@ export const useNotifications = (notes, userId, onComplete, onReminderTriggered)
         } else {
           await setDoc(userDocRef, { 
             notificationsEnabled: true,
-            selectedRingtone: '/ringtone.wav'
+            selectedRingtone: DEFAULT_RINGTONE
           }, { merge: true });
           setNotificationsEnabled(true);
-          setSelectedRingtone('/ringtone.wav');
+          setSelectedRingtone(DEFAULT_RINGTONE);
         }
       } catch (error) {
         console.error('Error loading notification preference:', error);

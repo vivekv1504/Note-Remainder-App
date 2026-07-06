@@ -10,11 +10,34 @@ test.beforeEach(async ({ page }) => {
 
 // ─── Shared helper: sign in via Firebase Auth Emulator ─────────────────────
 async function signInViaEmulator(page) {
-  await page.goto('/');
+  const email = 'test@test.com';
+  const password = 'Test1234!';
+
+  // Step 1: Create user in Auth Emulator (or sign up if not exists)
+  try {
+    await page.request.post('http://localhost:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake-api-key', {
+      data: {
+        email,
+        password,
+        returnSecureToken: true
+      }
+    });
+    console.log('[HELPER] Created new test user in emulator');
+  } catch (e) {
+    console.log('[HELPER] Test user already exists, continuing...');
+  }
+
+  // Step 2: Sign in via the app
+  await page.goto('/Note-Remainder-App/');
   await page.waitForFunction(() => typeof window.__testSignIn === 'function', { timeout: 5000 });
-  await page.evaluate(() => window.__testSignIn('test@test.com', 'Test1234!'));
+  await page.evaluate(async (creds) => {
+    await window.__testSignIn(creds.email, creds.password);
+  }, { email, password });
+
+  // Step 3: Wait for redirect to app
   await page.reload();
   await expect(page.locator('.login-card')).not.toBeVisible({ timeout: 10000 });
+
   // Wait for any toast notifications to clear before proceeding
   await page.waitForFunction(
     () => document.querySelectorAll('.Toastify__toast').length === 0,
