@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "note-reamainder-app"
-  }
+    "default": "note-reamainder-app",
+    "streamimg": "note-reamainder-app"
+  },
+  "targets": {},
+  "etags": {}
 }
