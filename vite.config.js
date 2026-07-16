@@ -8,7 +8,13 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png', 'ringtone.wav', 'sinder.mp3'],
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,wav,mp3}']
+      },
       manifest: {
         name: 'Note Reminder App',
         short_name: 'NoteReminder',
@@ -29,9 +35,6 @@ export default defineConfig({
             type: 'image/png'
           }
         ]
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,wav,mp3}']
       }
     })
   ]

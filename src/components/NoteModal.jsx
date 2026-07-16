@@ -53,6 +53,18 @@ export const NoteModal = ({ isOpen, onClose, onSave, note, onDelete }) => {
     e.target.value = '';
   };
 
+  const toggleCalendar = () => {
+    setShowCalendar((open) => {
+      // When opening the picker with no reminder yet, seed a sensible future
+      // default (5 minutes out) so an untouched "Set reminder" click still
+      // produces a valid future time instead of an already-past one.
+      if (!open && !reminderTime) {
+        setReminderTime(new Date(Date.now() + 5 * 60 * 1000).toISOString());
+      }
+      return !open;
+    });
+  };
+
   const handleSave = () => {
     if (!title.trim()) {
       alert('Please enter a note title');
@@ -168,7 +180,7 @@ export const NoteModal = ({ isOpen, onClose, onSave, note, onDelete }) => {
               <button
                 type="button"
                 className="set-reminder-btn"
-                onClick={() => setShowCalendar((v) => !v)}
+                onClick={toggleCalendar}
               >
                 🕐 {reminderTime
                   ? new Date(reminderTime).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
@@ -193,9 +205,11 @@ export const NoteModal = ({ isOpen, onClose, onSave, note, onDelete }) => {
                 <Calendar
                   value={reminderTime ? new Date(reminderTime) : new Date()}
                   onChange={(date) => {
+                    // Keep the picker open so the user can adjust BOTH the day and
+                    // the time before confirming. Closing here (the old behaviour)
+                    // locked in a near-"now" time and made reminders fire instantly.
                     if (date) {
                       setReminderTime(date.toISOString());
-                      setShowCalendar(false);
                     }
                   }}
                   locale="en"
@@ -205,6 +219,25 @@ export const NoteModal = ({ isOpen, onClose, onSave, note, onDelete }) => {
                   width="100%"
                   startDate={new Date()}
                 />
+                <div className="calendar-actions">
+                  <button
+                    type="button"
+                    className="calendar-clear-btn"
+                    onClick={() => {
+                      setReminderTime('');
+                      setShowCalendar(false);
+                    }}
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    className="calendar-confirm-btn"
+                    onClick={() => setShowCalendar(false)}
+                  >
+                    Set reminder
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -233,7 +266,7 @@ export const NoteModal = ({ isOpen, onClose, onSave, note, onDelete }) => {
             style={{ display: 'none' }}
             onChange={handleImagePick}
           />
-          <button className="toolbar-btn" title="Reminder" onClick={() => setShowCalendar((v) => !v)}>
+          <button className="toolbar-btn" title="Reminder" onClick={toggleCalendar}>
             <span className="toolbar-icon">⏰</span>
           </button>
         </div>

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/Note-Remainder-App/');
+  await page.goto('/');
 });
 
 test('login page displays all elements correctly', async ({ page }) => {

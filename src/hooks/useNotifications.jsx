@@ -2,11 +2,23 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { ensureNotificationPermission, showSystemNotification } from '../utils/reminderNotifications';
 const REPEAT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_RINGTONE = `${import.meta.env.BASE_URL}ringtone.wav`;
 
+// Normalize Firestore timestamps (Timestamp instance, {seconds}, or ms number)
+// into a millisecond epoch. Returns null when it can't be resolved.
+const toMillis = (value) => {
+  if (!value) return null;
+  if (typeof value === 'number') return value;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.seconds === 'number') return value.seconds * 1000;
+  return null;
+};
+
 export const useNotifications = (notes, userId, onComplete, onReminderTriggered) => {
   const audioRef = useRef(null);
+  const audioUnlockedRef = useRef(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [selectedRingtone, setSelectedRingtone] = useState(DEFAULT_RINGTONE);
   const selectedRingtoneRef = useRef(selectedRingtone);
@@ -71,33 +83,97 @@ export const useNotifications = (notes, userId, onComplete, onReminderTriggered)
     loadNotificationPreference();
   }, [userId]);
 
-  const playRingtone = useCallback(() => {
-    const path = selectedRingtoneRef.current;
+  // Ask for OS notification permission so reminders can also surface while the
+  // app is backgrounded/minimized (not just as in-page toasts).
+  useEffect(() => {
+    if (notificationsEnabled) {
+      ensureNotificationPermission();
+    }
+  }, [notificationsEnabled]);
+
+  // Lazily create ONE reusable audio element. Reusing a single element (instead
+  // of `new Audio()` per reminder) is what lets us keep it "unlocked" for
+  // autoplay after the first user gesture.
+  const getAudioEl = () => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      audioRef.current.preload = 'auto';
+    }
+    return audioRef.current;
+  };
+
+  const resolveAudioSrc = (path) => {
     let audioSrc = path;
     if (!path.startsWith('/') && !path.startsWith('data:')) {
       try {
         const customs = JSON.parse(localStorage.getItem('customRingtones') || '[]');
         const found = customs.find((r) => r.path === path);
         if (found) audioSrc = found.path;
-      } catch {}
+      } catch {
+        // Ignore malformed customRingtones cache.
+      }
     }
-    const audio = new Audio(audioSrc);
-    audioRef.current = audio;
+    return audioSrc;
+  };
+
+  const playRingtone = useCallback(() => {
+    const audio = getAudioEl();
+    audio.src = resolveAudioSrc(selectedRingtoneRef.current);
+    audio.muted = false;
     audio.volume = 1.0;
+    audio.currentTime = 0;
     const playPromise = audio.play();
     if (playPromise !== undefined) {
       playPromise.catch((err) => {
-        console.error('[Ringtone] Play failed:', err.name, err.message);
+        if (err && err.name === 'NotAllowedError') {
+          // Autoplay is blocked until the user interacts with the page at least
+          // once. The toast + OS notification still alert the user; audio will
+          // play for subsequent reminders after any tap/click/keypress.
+          console.warn('[Ringtone] Autoplay blocked until first interaction:', err.message);
+        } else {
+          console.error('[Ringtone] Play failed:', err.name, err.message);
+        }
       });
     }
   }, []);
+
   const stopAudio = () => {
-  if (audioRef.current) {
-    audioRef.current.pause();
-    audioRef.current.currentTime = 0;
-    audioRef.current = null;
-  }
-};
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+  };
+
+  // Unlock audio playback on the first user interaction so reminder ringtones
+  // can be played later from the timer without a direct user gesture (browser
+  // autoplay policy). We play the element muted once, then reset it.
+  useEffect(() => {
+    const unlock = () => {
+      if (audioUnlockedRef.current) return;
+      const audio = getAudioEl();
+      audio.src = resolveAudioSrc(selectedRingtoneRef.current);
+      audio.muted = true;
+      const finish = () => {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.muted = false;
+        audioUnlockedRef.current = true;
+      };
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.then(finish).catch(() => {
+          // Some browsers reject muted programmatic play too; ignore and retry
+          // on the next interaction.
+        });
+      } else {
+        finish();
+      }
+    };
+
+    const events = ['pointerdown', 'keydown', 'touchstart'];
+    events.forEach((e) => window.addEventListener(e, unlock, { passive: true }));
+    return () => events.forEach((e) => window.removeEventListener(e, unlock));
+  }, []);
 
   const setRingtone = (path) => {
     setSelectedRingtone(path);
@@ -114,6 +190,16 @@ export const useNotifications = (notes, userId, onComplete, onReminderTriggered)
   };
 
   const showNotification = useCallback((note) => {
+    // Surface an OS-level notification when the tab isn't focused so the user
+    // still gets alerted while the app is backgrounded/minimized.
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+      showSystemNotification({
+        title: '⏰ Reminder!',
+        body: note.title,
+        tag: `reminder-${note.id}`,
+      });
+    }
+
     // Play custom ringtone
     playRingtone();
 
@@ -189,10 +275,22 @@ export const useNotifications = (notes, userId, onComplete, onReminderTriggered)
 
         const entry = lastNotifiedAt.current[note.id];
 
-        // Only fire if recently became due (within last 2 minutes) OR repeat interval passed
-        //const isRecentlyDue = timeSinceDue < (2 * 60 * 1000); // 2 minutes
         const isFreshReminder = !entry || entry.forTime !== note.reminderTime;
         const isDueAgain = entry && (now - entry.firedAt) >= REPEAT_INTERVAL_MS;
+
+        // Bug fix: prevent the "sudden burst on reopen". If this device has no
+        // local dedup record (e.g. fresh reload / different device / cleared
+        // storage) but Firestore shows the reminder was ALREADY triggered for
+        // this exact time within the repeat window, don't re-alert. Seed the
+        // local record so it rejoins the normal 5-minute repeat cadence.
+        if (isFreshReminder && !isDueAgain) {
+          const triggeredMs = toMillis(note.reminderTriggeredAt);
+          if (triggeredMs && (now - triggeredMs) < REPEAT_INTERVAL_MS) {
+            lastNotifiedAt.current[note.id] = { firedAt: triggeredMs, forTime: note.reminderTime };
+            localStorage.setItem('lastNotifiedAt', JSON.stringify(lastNotifiedAt.current));
+            return;
+          }
+        }
 
         if (isFreshReminder || isDueAgain) {
           showNotification(note);

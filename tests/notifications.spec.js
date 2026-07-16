@@ -24,7 +24,7 @@ async function signInViaEmulator(page) {
     console.log('[HELPER] Test user already exists, continuing...');
   }
 
-  await page.goto('/Note-Remainder-App/');
+  await page.goto('/');
   await page.waitForFunction(() => typeof window.__testSignIn === 'function', { timeout: 5000 });
   await page.evaluate(async (creds) => {
     await window.__testSignIn(creds.email, creds.password);
@@ -81,7 +81,7 @@ async function createNoteWithPastReminder(page, title) {
   await page.locator('.editor-title-input').fill(title);
 
   // 1 minute ago — already due, not in the future
-  const pastTime = new Date(Date.now() - 60 * 1000).toISOString().slice(0, 16);
+  const pastTime = toLocalInputValue(Date.now() - 60 * 1000);
   await fireReactDateInput(
     page.locator('[data-testid="test-reminder-input"]'),
     pastTime
@@ -93,6 +93,38 @@ async function createNoteWithPastReminder(page, title) {
   await page.locator('.editor-save').click();
   await expect(page.locator('.note-editor')).not.toBeVisible({ timeout: 5000 });
   console.log(`[HELPER] Note "${title}" saved with past-due reminder`);
+}
+
+// ─── Helper: build a datetime-local wall-clock string (YYYY-MM-DDTHH:mm) ────
+// datetime-local values are LOCAL wall-clock time. Using a raw UTC ISO string
+// here would be reinterpreted as local and shift by the timezone offset, so we
+// subtract the offset before slicing.
+function toLocalInputValue(ms) {
+  const d = new Date(ms);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60 * 1000)
+    .toISOString()
+    .slice(0, 16);
+}
+
+// ─── Helper: save a note with a reminder time in the FUTURE ─────────────────
+// A properly-set future reminder must NOT fire until its time arrives. This
+// guards against the picker bug where reminders defaulted to ~now and fired
+// instantly on save/reopen.
+async function createNoteWithFutureReminder(page, title, minutesAhead = 30) {
+  await openNoteEditor(page);
+  await page.locator('.editor-title-input').fill(title);
+
+  const futureTime = toLocalInputValue(Date.now() + minutesAhead * 60 * 1000);
+  await fireReactDateInput(
+    page.locator('[data-testid="test-reminder-input"]'),
+    futureTime
+  );
+
+  await page.evaluate(() => localStorage.removeItem('lastNotifiedAt'));
+
+  await page.locator('.editor-save').click();
+  await expect(page.locator('.note-editor')).not.toBeVisible({ timeout: 5000 });
+  console.log(`[HELPER] Note "${title}" saved with reminder ${minutesAhead}m ahead`);
 }
 
 // ─── TC_NOTIF_001: Toast fires when notifications are ENABLED ──────────────
@@ -198,4 +230,44 @@ test('[TC_NOTIF_002] Reminder toast is suppressed when notifications are disable
   await expect(page.locator('.Toastify__toast')).toBeVisible({ timeout: 5000 });
   await expect(page.locator('.Toastify__toast')).toContainText('Gym Session');
   console.log('[PASS] Toast fires immediately after re-enabling notifications');
+});
+
+// ─── TC_NOTIF_003: A FUTURE reminder must NOT fire immediately ─────────────
+// Regression test for the "reminder triggers suddenly" bug. A reminder set for
+// a future time should stay silent until it is actually due.
+test('[TC_NOTIF_003] Future reminder does not fire immediately', async ({ page }) => {
+  console.log('[TEST] TC_NOTIF_003 — Future reminder stays silent');
+  await signInViaEmulator(page);
+
+  // Create a note due 30 minutes from now
+  await createNoteWithFutureReminder(page, 'Future Meeting', 30);
+
+  // Wait several interval ticks — no toast should ever appear
+  await page.waitForTimeout(4000);
+  await expect(page.locator('.Toastify__toast')).not.toBeVisible();
+  console.log('[PASS] No toast for a future reminder');
+});
+
+// ─── TC_NOTIF_004: Reopening the app does not re-burst a shown reminder ─────
+// Regression test for the reopen-burst bug. Once a due reminder has fired and
+// been persisted (reminderTriggeredAt), a reload within the repeat window must
+// not immediately re-alert.
+test('[TC_NOTIF_004] Reopening does not re-burst an already-triggered reminder', async ({ page }) => {
+  console.log('[TEST] TC_NOTIF_004 — No re-burst on reopen');
+  await signInViaEmulator(page);
+
+  // Create a past-due reminder and let it fire once
+  await createNoteWithPastReminder(page, 'Standup Call');
+  await expect(page.locator('.Toastify__toast')).toBeVisible({ timeout: 5000 });
+  console.log('[PASS] Reminder fired the first time');
+
+  // Simulate closing/reopening the app on a device with no local dedup state.
+  // The Firestore-persisted reminderTriggeredAt should suppress the re-alert.
+  await page.evaluate(() => localStorage.removeItem('lastNotifiedAt'));
+  await page.reload();
+  await expect(page.locator('.login-card')).not.toBeVisible({ timeout: 10000 });
+
+  await page.waitForTimeout(4000);
+  await expect(page.locator('.Toastify__toast')).not.toBeVisible();
+  console.log('[PASS] No re-burst after reopening the app');
 });
