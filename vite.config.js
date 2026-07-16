@@ -3,12 +3,18 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  base: '/',           // change from '/Note-Remainder-App/' since Firebase Hosting uses root
+  base: process.env.VITE_BASE_PATH || '/',
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png', 'ringtone.wav', 'sinder.mp3'],
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,wav,mp3}']
+      },
       manifest: {
         name: 'Note Reminder App',
         short_name: 'NoteReminder',
@@ -16,7 +22,7 @@ export default defineConfig({
         theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',
-        start_url: '/',
+        start_url: process.env.VITE_BASE_PATH || '/',
         icons: [
           {
             src: 'App_icon.png',
@@ -29,9 +35,6 @@ export default defineConfig({
             type: 'image/png'
           }
         ]
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,wav,mp3}']
       }
     })
   ]

@@ -23,7 +23,7 @@ async function signInViaEmulator(page) {
     console.log('[HELPER] Test user already exists, continuing...');
   }
 
-  await page.goto('/Note-Remainder-App/');
+  await page.goto('/');
   await page.waitForFunction(() => typeof window.__testSignIn === 'function', { timeout: 5000 });
   await page.evaluate(async (creds) => {
     await window.__testSignIn(creds.email, creds.password);

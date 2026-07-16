@@ -61,6 +61,18 @@ export const QuickTodo = ({ isOpen, onClose, onSave, onUpdate, onDelete, note })
     }
   };
 
+  const toggleDatePicker = () => {
+    setShowDatePicker((open) => {
+      // Seed a sensible future default (5 minutes out) when opening with no
+      // reminder set, so tapping "Done" without touching the wheel still
+      // yields a valid future time rather than an already-past one.
+      if (!open && !reminderTime) {
+        setReminderTime(new Date(Date.now() + 5 * 60 * 1000).toISOString());
+      }
+      return !open;
+    });
+  };
+
   if (!isOpen) return null;
 
   const formatReminderTime = () => {
@@ -113,9 +125,11 @@ export const QuickTodo = ({ isOpen, onClose, onSave, onUpdate, onDelete, note })
             <Calendar
               value={reminderTime ? new Date(reminderTime) : new Date()}
               onChange={(date) => {
+                // Keep the picker open so both day and time can be adjusted
+                // before the user taps "Done". Auto-closing here locked in a
+                // near-"now" time and caused reminders to fire immediately.
                 if (date) {
                   setReminderTime(date.toISOString());
-                  setShowDatePicker(false);
                 }
               }}
               locale="en"
@@ -142,7 +156,7 @@ export const QuickTodo = ({ isOpen, onClose, onSave, onUpdate, onDelete, note })
           )}
           <button
             className="footer-icon-btn reminder-btn"
-            onClick={() => setShowDatePicker(!showDatePicker)}
+            onClick={toggleDatePicker}
             title={formatReminderTime()}
           >
             🔔
